@@ -6,7 +6,6 @@ This module provide twist() function which provides the following features:
   * takes iterables as argument and creates a generator.
   * upper compatible to zip() or zip_longest() except for type of instance.
   * able to select from which iterators to aggregate elements via send().
-
 """
 
 

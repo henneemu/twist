@@ -128,3 +128,6 @@ However, exactly when `thing` is `None`, calls `next()`.
   </tbody>
 </table>
 
+## License
+
+Distributed under the MIT License.

@@ -1,69 +1,92 @@
 # twister.twist()
 
+Version 0.10.0
+
 ## Overview
 
-Enables to iterate over iterables together and independently of each other.  
+  `twister.twist(*iterables, **kwargs)`
 
-    twister.twist(*iterables, **kwargs)
+Function as enhanced zip() to control aggregating elements from iterables.
 
-This `twister` module provides `twist()` function which has the following features:
-  * takes iterables as argument and creates a generator.
-  * upper compatible to `zip()` or `zip_longest()` except for the type of instance.
-  * able to select from which iterators to aggregate elements via the `send()` method.
+This `twister` module provides the `twist()` function which has the following features:
+  * upper compatible to `zip()` or `zip_longest()` except returns a generator.
+  * can select iterables to aggregate elements from via the `send()` method.
+  * can call `send()` instead of `next()` on generator in argument iterables.
 
-**Requirement: Python 3.0 or above.**
+Requirement: **Python 3.0 or above.**
 
-## Example
+
+
+## Compatibility to zip()
+
+Without the `send()` method called on, works just like the built-in `zip()` function.
 
 ```python
 from twister import twist
 
-tw = twist(range(4), range(8))
+tw = twist(range(4), range(5))
 
 for a, b in tw:
     print(a, b)
-    
-    if b == 1:
-        tw.send([1, 1])   # tw.send([1]) selects (range(4), range(8))[1].
-
 ```
 
     0 0
     1 1
-    1 3
-    2 4
-    3 5
-    
+    2 2
+    3 3
 
-## send(value)
 
-To select iterators, pass keys of them to the value argument of the `send(value)` method as following:
+If the `longest` argument is `True`, works just like `itertools.zip_longest()` when no `send()`.
 
-  * `key` or `(key, thing)` ----  ex.) `tw.send(0)`, `tw.send((1, "a"))`
-    
-  * iterable, except for tuple, of two above ----  ex.) `tw.send([0, (1, "a")])`
-    
-  * empty iterable ---- ex.) `tw.send([])`
 
-Without calling `send()`, works the same as `zip()`, or `itertools.zip_longest()` when the `longest` argument is `True`.
 
-Negative key values are available. The evaluation order of aggregating elements is guaranteed by the order of keys. 
+## The send(value) Method
 
-When the `longest` argument is `True`, passing keys of exhausted iterators raises `KeyError` exception.
+The way of aggregating elements from iterables can be changed by passing their indices in argument iterables to the `value` argument of the `send(value)` method.
 
-If `(key, thing)` instead of `key`, calls `send(thing)` instead of `next()` on the argument iterator, which is supposed to be generator. For example:
+```python
+tw = twist(range(4), range(5))
+
+for a, b in tw:
+    print(a, b)
+
+    if a == 1:
+        tw.send(0)   # tw.send(0) -> (range(4), range(8))[0]
+```
+
+    0 0
+    1 1
+    2 1
+    3 2
+
+
+For each element of iterables not aggregated from, the same element before are used.
+
+How to select iterables:
+
+  * To select `i`th iterable, pass `i` to the `value` argument of the `send(value)` method. ---- Ex.) `tw.send(0)`
+
+  * To select multiple iterables, pass iterable of `i` except for tuple. ---- Ex.) `tw.send([0, 1])`, `tw.send(range(1:3))`.
+
+  * To select no iterable, pass empty iterable. ---- Ex.) `tw.send([])`.
+
+Negative indices are available. The evaluation order of aggregating elements is guaranteed by the order of indices.
+
+Those indices are only used at the next aggregation. When calling `send()` twice or more, only the last call works.
+
+If `(i, x)` used instead of `i`, calls `send(x)` instead of `next()` on the `i`th iterable which must be generator.
 
 ```python
 def gen_f(x=None):
     while True:
         x = (yield x)
-        
-        
+
+
 tw = twist(range(4), gen_f())
 
-for n, s in tw:
-    print(n, s)
-    
+for n, x in tw:
+    print(n, x)
+
     if n == 1:
         tw.send([0, (1, "send")])
 ```
@@ -74,7 +97,8 @@ for n, s in tw:
     3 None
 
 
-However, exactly when `thing` is `None`, calls `next()`.
+However, exactly when `x` is `None`, or `(i, None)` instead of `i`, calls `next()`.
+
 
 
 ## Parameters and Returns
@@ -94,23 +118,23 @@ However, exactly when `thing` is `None`, calls `next()`.
           </blockquote>
           <b>longest</b><i> : bool, default False</i><br>
           <blockquote>
-              If True, works like itertools.zip_longest() when no send() called.<br>
+              If True, works like itertools.zip_longest() when no send().<br>
           </blockquote>
           <b>fillvalue</b><i> : Any, default None</i><br>
           <blockquote>
-              Works the same as in itertools.zip_longest().
+              Works just like in itertools.zip_longest().
           </blockquote>
           <b>working</b><i> : set or iterable, default None</i><br>
           <blockquote>
-              Keys of the iterators to be treated as not exhausted. If None, set of all keys.
+              Set of index of iterator to be treated as not exhausted. If None, set of all indices.
           </blockquote>
           <b>items</b><i> : list or iterable, default None</i><br>
           <blockquote>
-              List of the initial values used before aggregating the first elements from the iterators. The length must be the same as of iterables. If None, list of fillvalue.
+              List of initial value used before aggregating the first element from each iterable. The length must be the same as iterables. If None, list of fillvalue.
           </blockquote>
-          <b>move</b><i> : the same as passed to the value argument of the send(value) method, default None</i><br>
+          <b>cues</b><i> : the same as passed to the value argument of the send(value) method, default None</i><br>
           <blockquote>
-              Keys of the iterators from which to aggregate elements at the first next(). If None, working.
+              Works as if passed from the send(value) method before aggregating at the start. If None, working.
           </blockquote>
       </td>
     </tr>
@@ -127,6 +151,7 @@ However, exactly when `thing` is `None`, calls `next()`.
     </tr>
   </tbody>
 </table>
+
 
 ## License
 

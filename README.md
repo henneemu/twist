@@ -19,7 +19,7 @@ Requirement: **Python 3.0 or above.**
 
 ## Compatibility to zip()
 
-Without the `send()` method called on, works just like the built-in `zip()` function.
+When no `send()` method called on, works just like the built-in `zip()` function.
 
 ```python
 from twister import twist

@@ -6,7 +6,7 @@ Version 0.10.0
 
   `twister.twist(*iterables, **kwargs)`
 
-Function as enhanced zip() to control aggregating elements from iterables.
+Function as enhanced `zip()` to control aggregating elements from iterables.
 
 This `twister` module provides the `twist()` function which has the following features:
   * upper compatible to `zip()` or `zip_longest()` except returns a generator.

@@ -1,24 +1,30 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Enables to iterate over iterables together and independently of each other.
+"""Function as enhanced zip() to control aggregating elements from iterables.
 
 This module provide twist() function which provides the following features:
-  * takes iterables as argument and creates a generator.
-  * upper compatible to zip() or zip_longest() except for type of instance.
-  * able to select from which iterators to aggregate elements via send().
+  * upper compatible to `zip()` or `zip_longest()` except returns a generator.
+  * can select iterables to aggregate elements from via the `send()` method.
+  * can call `send()` instead of `next()` on generator in argument iterables.
+
+Version 0.10.0
 """
 
 
-def _twist(*iterators, longest, fillvalue, working, items, move):
-    """Generator function witch executes the main iteration process of twist().
+def _twist(*iterators, longest, fillvalue, working, elems, cues):
+    """Function creating the generator witch iterates over iterables.
 
-    Separated from the main function to check the arguments just after taking
-    them. That's because generator doesn't start execution until the first call
-    of next().
+    Separated from the main function to check the arguments before returns to
+    the caller, since generators start execution only after called next() on.
+
+    elems       each of them is the last element aggregated from iterables.
+    i           index for the iterable to select in the argument tuple.
+    x           object to pass to generator in iterables by calling send() on.
+    cues        i or (i, x) or iterable of them except for tuple.
     """
 
     sentinel = object()
-    num_iterators = len(iterators)
+    len_iter = len(iterators)
 
     while True:
 
@@ -26,46 +32,47 @@ def _twist(*iterators, longest, fillvalue, working, items, move):
         # Aggregating elements from the selected iterators
         #
 
-        if isinstance(move, int) or isinstance(move, tuple):
-            move = [move]
+        if isinstance(cues, int) or isinstance(cues, tuple):
+            cues = [cues]
         else:
-            move = list(move)
+            cues = list(cues)
 
-        for cue in move:
+        for i in cues:
 
-            # Converting supported formats into common variables
-            if isinstance(cue, int):
-                key, thing = cue, None
-            elif isinstance(cue, tuple):
-                key, thing = cue
+            # i or (i, x) -> i, x
+            if isinstance(i, int):
+                x = None
+            elif isinstance(i, tuple):
+                i, x = i
             else:
-                raise ValueError
+                raise ValueError("expected int or (int, object), but got", i)
 
-            if key in working or (num_iterators + key) in working:
+            if i in working or (len_iter + i) in working:
 
                 # Retrieving the next item
-                if thing is None:
-                    elem = next(iterators[key], sentinel)
+                if x is None:
+                    elem = next(iterators[i], sentinel)
                 else:
                     try:
-                        elem = iterators[key].send(thing)
+                        elem = iterators[i].send(x)
                     except StopIteration:
                         elem = sentinel
 
                 # Handling of the exhaustion
                 if elem is sentinel:
-                    if key in working:
-                        working.remove(key)
+                    if i in working:
+                        working.remove(i)
                     else:
-                        working.remove(num_iterators + key)
+                        working.remove(len_iter + i)
                     if not longest:
                         return
-                    items[key] = fillvalue
+                    elems[i] = fillvalue
                 else:
-                    items[key] = elem
+                    elems[i] = elem
 
-            else:
-                raise KeyError
+            # else:
+            elif not -len_iter <= i < len_iter:
+                raise IndexError
 
         if len(working) == 0:
             return
@@ -74,66 +81,67 @@ def _twist(*iterators, longest, fillvalue, working, items, move):
         # Communicating with the callers
         #
 
-        received = (yield tuple(items))  # Return to the next() caller
+        received = (yield tuple(elems))  # Returns to the next() caller
 
         if received is None:  # next() in a row
-            move = working
+            cues = working
         else:
             while received is not None:  # send(value)
-                move = received
+                cues = received
                 received = (yield)
 
 
-def twist(*iterables, longest=False, fillvalue=None, working=None, items=None, move=None):
-    """Function working as enhanced zip() by attachment of send() method.
+def twist(*iterables, longest=False, fillvalue=None, working=None, init_elems=None, first_cues=None):
+    """Function aggregating elements from iterables with the control of send().
 
-    iterables       tuple of iterable. keys are widely used in this function.
-    longest         if True, works like itertools.zip_longest().
-    fillvalue       works the same as in itertools.zip_longest().
-    working         set of key of not exhausted iterators.
-    items           list of the last element retrieved from each iterator.
-    move            cue or iterable of cue except for tuple. passed from the
-                    value argument of send() of the generator created.
-    cue             key or (key, thing). key is of the iterator to aggregate
-                    elements from at the next call of next(). if (key, thing),
-                    send(thing) is called on the iterator instead of next().
+    iterables       indices in this argument tuple are used in this function.
+    longest         if True, works like itertools.zip_longest() when no send().
+    fillvalue       works just like in itertools.zip_longest().
+    working         set of index of iterator to be treated as not exhausted.
+    init_elems      list of initial value used before aggregating the first
+                    element from each iterable.
+    first_cues      works as if passed from the send(value) method before
+                    aggregating at the start.
     """
 
-    # check the arguments before the first call of next(), like __init__().
+    # check the arguments before the first call of next() on the created
+    # generator, like __init__().
 
     iterators = tuple([iter(it) for it in iterables])
-    num_iterators = len(iterators)
+    len_iter = len(iterators)
 
     if working is None:
-        working = set(range(num_iterators))
+        working = set(range(len_iter))
     else:
         temp = {}
-        for key in working:
-            if 0 <= key < num_iterators:
-                temp |= {key}
-            elif -num_iterators <= key < 0:
-                temp |= {num_iterators + key}
+        for i in working:
+            if 0 <= i < len_iter:
+                temp |= {i}
+            elif -len_iter <= i < 0:
+                temp |= {len_iter + i}
             else:
-                raise ValueError
+                raise IndexError
         working = temp
 
     if not isinstance(longest, bool):
-        raise TypeError
-    elif not longest and len(working) < num_iterators:
+        raise TypeError("longest must be boolean, but got", type(longest))
+    elif not longest and len(working) < len_iter:
         return
 
-    if items is None:
-        items = [fillvalue] * num_iterators
+    if init_elems is None:
+        elems = [fillvalue] * len_iter
     else:
-        items = list(items)
-        if len(items) != num_iterators:
-            raise ValueError
+        elems = list(init_elems)
+        if len(elems) != len_iter:
+            raise ValueError("expected {},".format(len_iter), "but got", len(elems))
 
-    for key in range(num_iterators):
-        if key not in working:
-            items[key] = fillvalue
+    for i in range(len_iter):
+        if i not in working:
+            elems[i] = fillvalue
 
-    if move is None:
-        move = working
+    if first_cues is None:
+        cues = working
+    else:
+        cues = first_cues
 
-    return _twist(*iterators, longest=longest, fillvalue=fillvalue, working=working, items=items, move=move)
+    return _twist(*iterators, longest=longest, fillvalue=fillvalue, working=working, elems=elems, cues=cues)
